@@ -1,0 +1,33 @@
+[project]
+name = "airflow-template"
+version = "0.1.0"
+description = "Production-ready Airflow 3.x template with SQLAlchemy version conflict resolution"
+requires-python = ">=3.12"
+readme = "README.md"
+dependencies = [
+    "apache-airflow>=3.0.0",
+    "utils",
+    "db",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "packages/utils",
+    "packages/db",
+]
+
+[tool.uv.sources]
+utils = { workspace = true }
+db = { workspace = true }
+
+# Note: Root workspace is not a buildable package (virtual)
+# Individual packages in packages/ have their own build-system

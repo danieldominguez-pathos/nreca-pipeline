@@ -1,0 +1,13 @@
+# Ruff configuration for Airflow template
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "W", "UP", "RUF", "PTH", "PLR", "S"]
+ignore = [
+    "S311",  # Allow random for non-cryptographic purposes
+]
+
+[lint.per-file-ignores]
+"alembic/versions/*.py" = ["E501"]  # Allow long lines in migrations
+"dags/**/*.py" = ["PLR0915"]  # DAG functions naturally have many statements
