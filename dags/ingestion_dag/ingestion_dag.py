@@ -193,6 +193,13 @@ def ingestion_dag() -> None:
             )
             log.info("content_chunked", filename=filename, chunk_count=len(chunks))
 
+            # Validate: file must have extractable content
+            if not chunks:
+                raise ValueError(
+                    f"No extractable text content in {filename} "
+                    "(file may be empty, image-only, or contain only whitespace)"
+                )
+
             return {
                 "success": True,
                 "file_id": file_id,
@@ -355,6 +362,7 @@ def ingestion_dag() -> None:
 
         log = get_logger("ingestion_dag.update_metadata")
 
+        from ingestion_dag.task_dead_queue import remove_from_dead_queue
         from ingestion_dag.task_file_records import update_file_status
 
         file_chunks = store_result.get("file_chunks", {})
@@ -367,6 +375,12 @@ def ingestion_dag() -> None:
                 status="LOADED",
                 chunk_count=chunk_count,
             )
+
+            # Clean up any previous dead queue entries for this file
+            removed = remove_from_dead_queue(filename)
+            if removed > 0:
+                log.info("dead_queue_cleaned", filename=filename, removed=removed)
+
             log.info(
                 "file_status_updated",
                 filename=filename,

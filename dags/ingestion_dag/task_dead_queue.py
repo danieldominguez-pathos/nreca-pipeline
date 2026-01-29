@@ -44,6 +44,26 @@ def write_to_dead_queue(
         }
 
 
+def remove_from_dead_queue(filename: str) -> int:
+    """Remove all dead queue entries for a file.
+
+    Called when a file is successfully ingested after previous failures.
+
+    Args:
+        filename: Name of the file to remove from dead queue
+
+    Returns:
+        Number of entries removed
+    """
+    from db import DeadQueueItem, get_session
+    from sqlalchemy import delete
+
+    with get_session() as session:
+        stmt = delete(DeadQueueItem).where(DeadQueueItem.filename == filename)
+        result = session.execute(stmt)
+        return result.rowcount
+
+
 def get_dead_queue_entries(limit: int = 100, offset: int = 0) -> tuple[list[dict], int]:
     """Get dead queue entries with pagination.
 
