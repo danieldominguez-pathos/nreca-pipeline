@@ -29,6 +29,9 @@ setup:
     @echo "=== Running database migrations ==="
     just migrate
     @echo ""
+    @echo "=== Initializing Airflow DAGs ==="
+    just reserialize
+    @echo ""
     @echo "=== Setup complete! ==="
     @echo "Run 'just health' to verify services are running"
     @echo "Run 'just pipeline-all' to ingest documents"
@@ -113,7 +116,7 @@ ingest-pending-limit limit:
 
 # Register all files from TEST_FILES_PATH directory
 register-all:
-    @docker compose exec api ls /data/files/ | grep -E '\.(pdf|txt|docx|doc)$' | jq -R -s 'split("\n") | map(select(length > 0))' | curl -s -X POST http://localhost:8000/ingest/register -H "Content-Type: application/json" -d @- | jq
+    @docker compose exec api ls /data/files/ | grep -E '\.(pdf|txt|docx)$' | jq -R -s '{filenames: (split("\n") | map(select(length > 0)))}' | curl -s -X POST http://localhost:8000/ingest/register -H "Content-Type: application/json" -d @- | jq
 
 # Register specific files (comma-separated)
 register files:
@@ -147,7 +150,8 @@ health:
 
 # Query documents (usage: just query "your question here")
 query question:
-    @curl -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d '{"query": "{{question}}"}' | jq
+    #!/usr/bin/env bash
+    curl -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"query\": \"{{question}}\"}" | jq
 
 # Rebuild and restart API only
 rebuild-api:
@@ -180,6 +184,10 @@ chroma-health:
 # List ChromaDB collections
 chroma-collections:
     @curl -s "http://localhost:8001/api/v2/tenants/default_tenant/databases/default_database/collections" | jq '.[].name'
+
+# Show ChromaDB collection contents (documents stored)
+chroma-docs:
+    @curl -s "http://localhost:8000/admin/chroma_list?limit=10" | jq '{total: .total, sample: [.documents[] | {filename, chunk_index}]}'
 
 # =============================================================================
 # Testing Commands
