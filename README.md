@@ -2,6 +2,61 @@
 
 Document ingestion and RAG query pipeline for NRECA.
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Docker Compose                                  │
+│                                                                             │
+│  ┌──────────────┐      ┌─────────────────────────────────────────────────┐  │
+│  │              │      │                 Airflow 3.x                      │  │
+│  │   FastAPI    │      │  ┌─────────────┐      ┌──────────────────────┐  │  │
+│  │   :8000      │─────▶│  │  Scheduler  │─────▶│    ingestion_dag     │  │  │
+│  │              │ trigger  └─────────────┘      │                      │  │  │
+│  │  /register   │      │                       │ get_file_ids         │  │  │
+│  │  /pending    │      │  ┌─────────────┐      │   ↓                  │  │  │
+│  │  /query      │      │  │  Webserver  │      │ fetch_and_parse ──┐  │  │  │
+│  │  /admin/*    │      │  │   :8080     │      │   ↓               │  │  │  │
+│  └──────┬───────┘      │  └─────────────┘      │ aggregate_chunks  │  │  │  │
+│         │              │                       │   ↓               │  │  │  │
+│         │              │                       │ embed_and_store ──┼──┼──┼──┼─┐
+│         │              │                       │   ↓               │  │  │  │ │
+│         │              │                       │ update_metadata ──┼──┼──┼──┼─┼─┐
+│         │              │                       │   ↓               │  │  │  │ │ │
+│         │              │                       │ summarize         │  │  │  │ │ │
+│         │              │                       └──────────────────┼──┘  │  │ │ │
+│         │              └─────────────────────────────────────────┼──────┘  │ │ │
+│         │                                                        │         │ │ │
+│         │  ┌──────────────────────┐    ┌──────────────────────┐  │         │ │ │
+│         │  │     PostgreSQL       │    │      ChromaDB        │  │         │ │ │
+│         │  │       :5434          │    │       :8001          │◀─┘         │ │ │
+│         │  │                      │    │                      │            │ │ │
+│         └─▶│  ┌──────────────┐    │    │  nreca_documents     │            │ │ │
+│            │  │ file_records │◀───┼────┼──────────────────────┼────────────┘ │ │
+│    read    │  │ dead_queue   │    │    │  (vector embeddings) │              │ │
+│    files   │  └──────────────┘    │    └──────────────────────┘              │ │
+│      │     │                      │                                          │ │
+│      │     │  ┌──────────────┐    │◀─────────────────────────────────────────┘ │
+│      │     │  │ airflow      │    │   status updates                           │
+│      │     │  │ (metadata)   │    │                                            │
+│      │     │  └──────────────┘    │◀───────────────────────────────────────────┘
+│      │     └──────────────────────┘   dead_queue writes
+│      ▼
+│  ┌──────────────┐
+│  │ /data/files  │  (mounted: test_files/ or S3)
+│  │  ├─ doc.pdf  │
+│  │  ├─ doc.docx │
+│  │  └─ doc.txt  │
+│  └──────────────┘
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Data Flow:
+  1. POST /ingest/register  →  Creates file_records (status: PENDING)
+  2. POST /ingest/pending   →  Triggers ingestion_dag via Airflow API
+  3. ingestion_dag          →  fetch → parse → chunk → embed → store
+  4. POST /query            →  Retrieves from ChromaDB → LLM generates answer
+```
+
 ## Quick Start
 
 ### Prerequisites
