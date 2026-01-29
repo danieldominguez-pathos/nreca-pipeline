@@ -39,6 +39,9 @@ class LLMClient:
 
         # Production LLM mode: prefer Gemma
         if settings.use_prod_llm and settings.gemma_api_key:
+            if not settings.gemma_base_url:
+                log.error("gemma_base_url_missing", hint="Set GEMMA_BASE_URL when using prod_llm mode")
+                raise ValueError("GEMMA_BASE_URL must be set when using prod_llm mode")
             self._client = AsyncOpenAI(
                 api_key=settings.gemma_api_key.get_secret_value(),
                 base_url=settings.gemma_base_url,

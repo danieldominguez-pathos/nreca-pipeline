@@ -95,14 +95,15 @@ class APISettings(BaseSettings):
         validation_alias="GROQ_MODEL",
     )
 
-    # Gemma settings (production - previously called immediatum)
+    # Gemma settings (production LLM)
     gemma_api_key: SecretStr | None = Field(
         default=None,
         validation_alias="GEMMA_API_KEY",
     )
-    gemma_base_url: str = Field(
-        default="http://localhost:11434/v1",
+    gemma_base_url: str | None = Field(
+        default=None,
         validation_alias="GEMMA_BASE_URL",
+        description="Production LLM endpoint (set in .env)",
     )
     gemma_model: str = Field(
         default="gemma2",
