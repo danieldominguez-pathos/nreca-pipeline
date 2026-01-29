@@ -57,6 +57,12 @@ build-fresh:
 # Start all services
 up:
     docker compose up -d
+    @echo ""
+    @echo "Services starting..."
+    @echo "  API:     http://localhost:8000/docs"
+    @echo "  Airflow: http://localhost:8080"
+    @echo ""
+    @echo "Run 'just airflow-pswd' for Airflow credentials"
 
 # Stop all services and release ports (data persists in volumes)
 down:
