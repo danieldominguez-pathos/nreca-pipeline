@@ -188,6 +188,15 @@ chroma-collections:
 # Show ChromaDB collection statistics and sample documents
 chroma-docs:
     #!/usr/bin/env bash
+    # Colors
+    CYAN='\033[0;36m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    DIM='\033[0;90m'
+    BOLD='\033[1m'
+    NC='\033[0m'
+
+    # Get storage size
     size=$(docker compose exec chroma du -sb /data/ 2>/dev/null | cut -f1)
     if [ -n "$size" ]; then
         if [ "$size" -ge 1099511627776 ]; then
@@ -204,13 +213,36 @@ chroma-docs:
     else
         human="unknown"
     fi
+
     # Get stats
-    curl -s "http://localhost:8000/admin/chroma_stats" | jq --arg size "$human" '{total_chunks, loaded_files, storage: $size}'
+    stats=$(curl -s "http://localhost:8000/admin/chroma_stats")
+    total=$(echo "$stats" | jq -r '.total_chunks')
+    files=$(echo "$stats" | jq -r '.loaded_files')
+
     echo ""
+    echo -e "${BOLD}ChromaDB Statistics${NC}"
+    echo -e "─────────────────────────────────"
+    echo -e "  ${CYAN}Total Chunks:${NC}  $total"
+    echo -e "  ${CYAN}Loaded Files:${NC}  $files"
+    echo -e "  ${CYAN}Storage:${NC}       $human"
+    echo ""
+    echo -e "${BOLD}Sample Chunks${NC} ${DIM}(10 random samples)${NC}"
+    echo -e "─────────────────────────────────"
+
     # Get random samples from different files with chunk preview
-    echo "Sample chunks (one per file):"
-    curl -s "http://localhost:8000/admin/chroma_list?limit=500&include_content=true" | \
-        jq -r '[.documents | group_by(.filename) | .[] | .[0]] | limit(10; .[]) | "\(.filename) [chunk \(.chunk_index)]: \(.chunk[0:120])..."'
+    response=$(curl -s "http://localhost:8000/admin/chroma_list?limit=500&include_content=true")
+    if echo "$response" | jq -e '.documents' >/dev/null 2>&1; then
+        echo "$response" | \
+            jq -r '.documents[] | select(.chunk != null) | "\(.filename)|\(.chunk_index)|\(.total_chunks)|\(.chunk[0:120] | gsub("\n"; " "))"' | \
+            shuf | head -10 | \
+            while IFS='|' read -r fname idx total chunk; do
+                echo -e "  ${GREEN}$fname${NC} ${DIM}[chunk $idx/$total]${NC}"
+                echo -e "    ${YELLOW}\"${chunk}...\"${NC}"
+                echo ""
+            done
+    else
+        echo -e "  ${DIM}No documents found or API unavailable${NC}"
+    fi
 
 # =============================================================================
 # Testing Commands
