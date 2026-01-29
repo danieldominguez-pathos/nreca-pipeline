@@ -168,10 +168,18 @@ CHROMA_COLLECTION=nreca_documents
 ### Production Variables
 
 ```bash
-CHROMA_PROD_HOST=...       # Remote ChromaDB host (VPN required)
-S3_BUCKET=...              # S3 bucket name
-GEMMA_API_KEY=...          # Production LLM API key
-GEMMA_BASE_URL=...         # Production LLM endpoint
+# ChromaDB (VPN required)
+CHROMA_PROD_HOST=18.205.154.91
+CHROMA_PROD_PORT=8000
+
+# Production LLM (Gemma)
+GEMMA_BASE_URL=https://models.designsuccess.com/gemma
+GEMMA_API_KEY=your-gemma-key
+GEMMA_MODEL=gemma2
+
+# S3 Storage
+S3_BUCKET=nreca-ingest-bucket
+AWS_REGION=us-east-1
 ```
 
 ## Project Structure
