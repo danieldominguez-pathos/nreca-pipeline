@@ -76,19 +76,21 @@ async def get_dead_queue(
 async def get_chroma_list(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    include_content: bool = Query(default=False, description="Include chunk text content"),
 ) -> ChromaListResponse:
     """List contents in ChromaDB collection.
 
     Args:
         limit: Maximum number of documents to return
         offset: Number of documents to skip
+        include_content: Whether to include chunk text content
 
     Returns:
         ChromaListResponse with documents and pagination info
     """
-    log.info("chroma_list_request", limit=limit, offset=offset)
+    log.info("chroma_list_request", limit=limit, offset=offset, include_content=include_content)
 
-    metadatas, total = list_documents(limit=limit, offset=offset)
+    metadatas, total = list_documents(limit=limit, offset=offset, include_content=include_content)
 
     documents = [
         ChromaDocument(
@@ -98,6 +100,7 @@ async def get_chroma_list(
             chunk_index=meta.get("chunk_index", 0),
             total_chunks=meta.get("total_chunks", 0),
             ingested_at=meta.get("ingested_at", ""),
+            chunk=meta.get("chunk"),
         )
         for meta in metadatas
     ]
@@ -110,6 +113,34 @@ async def get_chroma_list(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/chroma_stats")
+async def get_chroma_stats() -> dict:
+    """Get ChromaDB collection statistics.
+
+    Returns:
+        Statistics including total chunks, unique files, etc.
+    """
+    log.info("chroma_stats_request")
+
+    # Get all metadatas to compute stats
+    metadatas, total = list_documents(limit=10000, offset=0)
+
+    unique_files = set()
+    for meta in metadatas:
+        filename = meta.get("filename", "")
+        if filename:
+            unique_files.add(filename)
+
+    stats = {
+        "total_chunks": total,
+        "loaded_files": len(unique_files),
+        "files": sorted(unique_files),
+    }
+
+    log.info("chroma_stats_response", **stats)
+    return stats
 
 
 @router.get("/list_files", response_model=ListFilesResponse)

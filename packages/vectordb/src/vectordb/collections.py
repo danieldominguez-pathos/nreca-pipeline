@@ -176,6 +176,7 @@ def list_documents(
     offset: int = 0,
     collection_name: str | None = None,
     settings: ChromaSettings | None = None,
+    include_content: bool = False,
 ) -> tuple[list[dict], int]:
     """List documents in ChromaDB collection with pagination.
 
@@ -186,6 +187,7 @@ def list_documents(
         offset: Number of documents to skip
         collection_name: Optional collection name
         settings: Optional ChromaDB settings
+        include_content: Whether to include document content (chunk text)
 
     Returns:
         Tuple of (list of document metadata dicts, total count)
@@ -200,12 +202,23 @@ def list_documents(
 
     # Get all IDs and metadata (ChromaDB doesn't support offset directly)
     # We need to fetch more than needed and slice
+    include = ["metadatas"]
+    if include_content:
+        include.append("documents")
+
     results = collection.get(
-        include=["metadatas"],
+        include=include,
         limit=limit + offset if offset > 0 else limit,
     )
 
     metadatas = results.get("metadatas", [])
+    documents = results.get("documents", []) if include_content else []
+
+    # Merge documents into metadatas if requested
+    if include_content and documents:
+        for i, meta in enumerate(metadatas):
+            if i < len(documents):
+                meta["chunk"] = documents[i]
 
     # Apply offset
     if offset > 0:

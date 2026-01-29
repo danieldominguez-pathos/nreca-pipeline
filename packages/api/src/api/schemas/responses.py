@@ -61,6 +61,7 @@ class ChromaDocument(StrictModel):
     chunk_index: int
     total_chunks: int
     ingested_at: str
+    chunk: str | None = None  # Optional text content
 
 
 class ChromaListResponse(StrictModel):

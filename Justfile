@@ -185,7 +185,7 @@ chroma-health:
 chroma-collections:
     @curl -s "http://localhost:8001/api/v2/tenants/default_tenant/databases/default_database/collections" | jq '.[].name'
 
-# Show ChromaDB collection contents (documents stored)
+# Show ChromaDB collection statistics and sample documents
 chroma-docs:
     #!/usr/bin/env bash
     size=$(docker compose exec chroma du -sb /data/ 2>/dev/null | cut -f1)
@@ -204,7 +204,13 @@ chroma-docs:
     else
         human="unknown"
     fi
-    curl -s "http://localhost:8000/admin/chroma_list?limit=10" | jq --arg size "$human" '{total: .total, storage: $size, sample: [.documents[] | {filename, chunk_index}]}'
+    # Get stats
+    curl -s "http://localhost:8000/admin/chroma_stats" | jq --arg size "$human" '{total_chunks, loaded_files, storage: $size}'
+    echo ""
+    # Get random samples from different files with chunk preview
+    echo "Sample chunks (one per file):"
+    curl -s "http://localhost:8000/admin/chroma_list?limit=500&include_content=true" | \
+        jq -r '[.documents | group_by(.filename) | .[] | .[0]] | limit(10; .[]) | "\(.filename) [chunk \(.chunk_index)]: \(.chunk[0:120])..."'
 
 # =============================================================================
 # Testing Commands
