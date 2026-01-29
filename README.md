@@ -5,50 +5,48 @@ Document ingestion and RAG query pipeline for NRECA.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Docker Compose                                  │
-│                                                                             │
-│  ┌──────────────┐      ┌─────────────────────────────────────────────────┐  │
-│  │              │      │                 Airflow 3.x                      │  │
-│  │   FastAPI    │      │  ┌─────────────┐      ┌──────────────────────┐  │  │
-│  │   :8000      │─────▶│  │  Scheduler  │─────▶│    ingestion_dag     │  │  │
-│  │              │ trigger  └─────────────┘      │                      │  │  │
-│  │  /register   │      │                       │ get_file_ids         │  │  │
-│  │  /pending    │      │  ┌─────────────┐      │   ↓                  │  │  │
-│  │  /query      │      │  │  Webserver  │      │ fetch_and_parse ──┐  │  │  │
-│  │  /admin/*    │      │  │   :8080     │      │   ↓               │  │  │  │
-│  └──────┬───────┘      │  └─────────────┘      │ aggregate_chunks  │  │  │  │
-│         │              │                       │   ↓               │  │  │  │
-│         │              │                       │ embed_and_store ──┼──┼──┼──┼─┐
-│         │              │                       │   ↓               │  │  │  │ │
-│         │              │                       │ update_metadata ──┼──┼──┼──┼─┼─┐
-│         │              │                       │   ↓               │  │  │  │ │ │
-│         │              │                       │ summarize         │  │  │  │ │ │
-│         │              │                       └──────────────────┼──┘  │  │ │ │
-│         │              └─────────────────────────────────────────┼──────┘  │ │ │
-│         │                                                        │         │ │ │
-│         │  ┌──────────────────────┐    ┌──────────────────────┐  │         │ │ │
-│         │  │     PostgreSQL       │    │      ChromaDB        │  │         │ │ │
-│         │  │       :5434          │    │       :8001          │◀─┘         │ │ │
-│         │  │                      │    │                      │            │ │ │
-│         └─▶│  ┌──────────────┐    │    │  nreca_documents     │            │ │ │
-│            │  │ file_records │◀───┼────┼──────────────────────┼────────────┘ │ │
-│    read    │  │ dead_queue   │    │    │  (vector embeddings) │              │ │
-│    files   │  └──────────────┘    │    └──────────────────────┘              │ │
-│      │     │                      │                                          │ │
-│      │     │  ┌──────────────┐    │◀─────────────────────────────────────────┘ │
-│      │     │  │ airflow      │    │   status updates                           │
-│      │     │  │ (metadata)   │    │                                            │
-│      │     │  └──────────────┘    │◀───────────────────────────────────────────┘
-│      │     └──────────────────────┘   dead_queue writes
-│      ▼
-│  ┌──────────────┐
-│  │ /data/files  │  (mounted: test_files/ or S3)
-│  │  ├─ doc.pdf  │
-│  │  ├─ doc.docx │
-│  │  └─ doc.txt  │
-│  └──────────────┘
-└─────────────────────────────────────────────────────────────────────────────┘
+                         Docker Compose
+
+┌─────────────┐         ┌───────────────────────────────────────┐
+│   FastAPI   │         │             Airflow 3.x               │
+│    :8000    │         │                                       │
+│             │ trigger │  ┌──────────┐    ┌─────────────────┐  │
+│  /register ─┼────────▶│  │Scheduler │───▶│  ingestion_dag  │  │
+│  /pending   │         │  └──────────┘    │                 │  │
+│  /query     │         │                  │  get_file_ids   │  │
+│  /admin/*   │         │  ┌──────────┐    │       │         │  │
+└──────┬──────┘         │  │Webserver │    │       ▼         │  │
+       │                │  │  :8080   │    │  fetch_parse ───┼──┼───┐
+       │                │  └──────────┘    │       │         │  │   │
+       │                │                  │       ▼         │  │   │
+       │                │                  │  chunk_text     │  │   │
+       │                │                  │       │         │  │   │
+       │                │                  │       ▼         │  │   │
+       │                │                  │  embed_store ───┼──┼───┼──┐
+       │                │                  │       │         │  │   │  │
+       │                │                  │       ▼         │  │   │  │
+       │                │          ┌───────── update_meta    │  │   │  │
+       │                │          │       │       │         │  │   │  │
+       │                │          │       │       ▼         │  │   │  │
+       │                │          │       │  summarize      │  │   │  │
+       │                │          │       └─────────────────┘  │   │  │
+       │                └──────────│────────────────────────────┘   │  │
+       ▼                           │                                │  │
+┌─────────────────────────┐        │  ┌────────────────────────┐    │  │
+│      PostgreSQL         │        │  │       ChromaDB         │    │  │
+│        :5434            │        │  │        :8001           │◀───┼──┘
+│                         │        │  │                        │    │
+│  ┌───────────────────┐  │ status │  │   nreca_documents      │    │
+│  │   file_records  ◀─┼──┼─update─┘  │                        │    │
+│  │   dead_queue      │  │           │  (vector embeddings)   │    │
+│  └───────────────────┘  │           └────────────────────────┘    │
+│                         │                                         │
+│  ┌───────────────────┐  │           ┌────────────────────────┐    │
+│  │airflow (metadata) │  │           │        AWS S3          │    │
+│  └───────────────────┘  │           │  *.pdf, *.docx, *.txt  │◀───┘
+└─────────────────────────┘           │  (or local test_files/ │
+                                      └────────────────────────┘
+
 
 Data Flow:
   1. POST /ingest/register  →  Creates file_records (status: PENDING)
@@ -99,7 +97,7 @@ just query "What is the cooperative policy on renewable energy?"
 ## Services
 
 | Service    | URL                        | Description                    |
-|------------|----------------------------|--------------------------------|
+| ---------- | -------------------------- | ------------------------------ |
 | API        | http://localhost:8000/docs | Registration, ingestion, query |
 | Airflow    | http://localhost:8080      | DAG management                 |
 | ChromaDB   | http://localhost:8001      | Vector database                |
@@ -133,11 +131,13 @@ Full command list: `just --list`
 ## Environment Variables
 
 Required:
+
 ```bash
 GROQ_API_KEY=your-key      # Get at https://console.groq.com
 ```
 
 Optional:
+
 ```bash
 APP_ENV=local              # Environment
 GROQ_MODEL=llama-3.3-70b-versatile
@@ -145,6 +145,7 @@ CHROMA_COLLECTION=nreca_documents
 ```
 
 Production:
+
 ```bash
 OPENAI_API_KEY=...         # Use OpenAI instead of Groq
 LLM_MODEL=gpt-4o-mini
