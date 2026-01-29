@@ -187,7 +187,24 @@ chroma-collections:
 
 # Show ChromaDB collection contents (documents stored)
 chroma-docs:
-    @curl -s "http://localhost:8000/admin/chroma_list?limit=10" | jq '{total: .total, sample: [.documents[] | {filename, chunk_index}]}'
+    #!/usr/bin/env bash
+    size=$(docker compose exec chroma du -sb /data/ 2>/dev/null | cut -f1)
+    if [ -n "$size" ]; then
+        if [ "$size" -ge 1099511627776 ]; then
+            human=$(echo "scale=2; $size / 1099511627776" | bc)TB
+        elif [ "$size" -ge 1073741824 ]; then
+            human=$(echo "scale=2; $size / 1073741824" | bc)GB
+        elif [ "$size" -ge 1048576 ]; then
+            human=$(echo "scale=2; $size / 1048576" | bc)MB
+        elif [ "$size" -ge 1024 ]; then
+            human=$(echo "scale=2; $size / 1024" | bc)KB
+        else
+            human="${size}B"
+        fi
+    else
+        human="unknown"
+    fi
+    curl -s "http://localhost:8000/admin/chroma_list?limit=10" | jq --arg size "$human" '{total: .total, storage: $size, sample: [.documents[] | {filename, chunk_index}]}'
 
 # =============================================================================
 # Testing Commands
