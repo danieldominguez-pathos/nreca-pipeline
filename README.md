@@ -11,18 +11,18 @@ Document ingestion and RAG query pipeline for NRECA.
 │   FastAPI   │          │             Airflow 3.x                │
 │    :8000    │          │                                        │
 │             │ trigger  │  ┌──────────┐     ┌─────────────────┐  │
-│  /register ─┼────────▶│  │Scheduler │───▶│  ingestion_dag  │  │
+│  /register ──────────▶│  │Scheduler │───▶│  ingestion_dag  │  │
 │  /pending   │          │  └──────────┘     │                 │  │
 │  /query     │          │                   │  get_file_ids   │  │
 │  /admin/*   │          │  ┌──────────┐     │       │         │  │
 └──────┬──────┘          │  │Webserver │     │       ▼         │  │
-       │                 │  │  :8080   │     │  fetch_parse ───┼──┼──┐
+       │                 │  │  :8080   │     │  fetch_parse ─────────┐
        │                 │  └──────────┘     │       │         │  │  │
        │                 │                   │       ▼         │  │  │
        │                 │                   │  chunk_text     │  │  │
        │                 │                   │       │         │  │  │
        │                 │                   │       ▼         │  │  │
-       │                 │                   │  embed_store ───┼──┼──┼──┐
+       │                 │                   │  embed_store ────────────┐
        │                 │                   │       │         │  │  │  │
        │                 │                   │       ▼         │  │  │  │
        │                 │         ┌─────────── update_meta    │  │  │  │
@@ -34,10 +34,10 @@ Document ingestion and RAG query pipeline for NRECA.
        ▼                           │                                 │  │
 ┌─────────────────────────┐        │  ┌────────────────────────┐     │  │
 │      PostgreSQL         │        │  │       ChromaDB         │     │  │
-│        :5434            │        │  │        :8001           │◀───┼──┘
+│        :5434            │        │  │        :8001           │◀──────┘
 │                         │        │  │                        │     │
 │  ┌───────────────────┐  │ status │  │   nreca_documents      │     │
-│  │   file_records ◀─┼──┼─update─┘  │                        │     │
+│  │   file_records ◀───── update ┘  │                        │     │
 │  │   dead_queue      │  │           │  (vector embeddings)   │     │
 │  └───────────────────┘  │           └────────────────────────┘     │
 │                         │                                          │
