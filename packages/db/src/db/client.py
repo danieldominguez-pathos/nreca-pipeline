@@ -74,7 +74,7 @@ def get_session() -> Iterator[Session]:
 
     Usage:
         with get_session() as session:
-            item = session.get(MockItem, item_id)
+            item = session.get(FileRecord, file_id)
 
     The session automatically commits on success and rolls back on exception.
     """
