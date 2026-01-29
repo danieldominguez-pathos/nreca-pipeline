@@ -180,6 +180,8 @@ GEMMA_MODEL=gemma2
 # S3 Storage
 S3_BUCKET=nreca-ingest-bucket
 AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
 ```
 
 ## Project Structure
