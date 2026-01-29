@@ -185,8 +185,8 @@ chroma-health:
 chroma-collections:
     @curl -s "http://localhost:8001/api/v2/tenants/default_tenant/databases/default_database/collections" | jq '.[].name'
 
-# Show ChromaDB collection statistics and sample documents
-chroma-docs:
+# Show ChromaDB collection statistics and random sample documents (usage: just chroma-docs-sample 5)
+chroma-docs-sample n="10":
     #!/usr/bin/env bash
     # Colors
     CYAN='\033[0;36m'
@@ -226,7 +226,7 @@ chroma-docs:
     echo -e "  ${CYAN}Loaded Files:${NC}  $files"
     echo -e "  ${CYAN}Storage:${NC}       $human"
     echo ""
-    echo -e "${BOLD}Sample Chunks${NC} ${DIM}(10 random samples)${NC}"
+    echo -e "${BOLD}Sample Chunks${NC} ${DIM}({{n}} random samples)${NC}"
     echo -e "─────────────────────────────────"
 
     # Get random samples from different files with chunk preview
@@ -234,7 +234,7 @@ chroma-docs:
     if echo "$response" | jq -e '.documents' >/dev/null 2>&1; then
         echo "$response" | \
             jq -r '.documents[] | select(.chunk != null) | "\(.filename)|\(.chunk_index)|\(.total_chunks)|\(.chunk[0:120] | gsub("\n"; " "))"' | \
-            shuf | head -10 | \
+            shuf | head -{{n}} | \
             while IFS='|' read -r fname idx total chunk; do
                 echo -e "  ${GREEN}$fname${NC} ${DIM}[chunk $idx/$total]${NC}"
                 echo -e "    ${YELLOW}\"${chunk}...\"${NC}"
