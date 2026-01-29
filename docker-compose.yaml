@@ -1,5 +1,3 @@
-version: '3.8'
-
 # =============================================================================
 # Airflow 3.x Docker Compose Configuration
 # =============================================================================
@@ -25,12 +23,14 @@ x-airflow-common:
     AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: 2
     AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: 1
     # Airflow metadata database (separate from app database)
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW_DATABASE_URL:-postgresql+psycopg://airflow:airflow@postgres:5432/airflow}
+    # NOTE: Airflow requires psycopg2 (not psycopg3) for executemany_mode support
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW_DATABASE_URL:-postgresql+psycopg2://airflow:airflow@postgres:5432/airflow}
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     # Simple Auth Manager (SAM) - default in Airflow 3.x
-    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: '${AIRFLOW_ADMIN_USER:-admin}:admin'
+    # Format: username:role (password is auto-generated, use 'just lookup-pswd')
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: '${AIRFLOW_ADMIN_USER:-admin}:Admin'
     # Secret keys (must be same across all containers)
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-change-me-in-production}
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_SECRET_KEY:-change-me-in-production}
@@ -41,8 +41,19 @@ x-airflow-common:
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-webserver:8080/execution/
     # Application settings
     APP_MODE: production
+    APP_ENV: ${APP_ENV:-local}
     # Application database (for your models)
     DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://app:app@postgres:5432/app}
+    # Storage settings
+    TEST_FILES_PATH: /data/files
+    S3_BUCKET: ${S3_BUCKET:-nreca-ingest-bucket}
+    S3_PREFIX: ${S3_PREFIX:-documents/}
+    # ChromaDB settings
+    CHROMA_LOCAL_HOST: chroma
+    CHROMA_LOCAL_PORT: 8000
+    CHROMA_PROD_HOST: ${CHROMA_PROD_HOST:-18.205.154.91}
+    CHROMA_PROD_PORT: ${CHROMA_PROD_PORT:-8000}
+    CHROMA_COLLECTION: ${CHROMA_COLLECTION:-nreca_documents}
   # Run as airflow user (uid 50000)
   user: "${AIRFLOW_UID:-50000}:0"
   volumes:
@@ -52,6 +63,7 @@ x-airflow-common:
     - ./venv_cache:/opt/airflow/venv_cache
     - ./alembic:/opt/airflow/alembic:ro
     - ./alembic.ini:/opt/airflow/alembic.ini:ro
+    - ${TEST_FILES_PATH:-./test_files}:/data/files:ro
   depends_on:
     postgres:
       condition: service_healthy
@@ -60,6 +72,8 @@ services:
   # PostgreSQL with two databases: airflow (metadata) and app (your data)
   postgres:
     image: postgres:16-alpine
+    ports:
+      - "5434:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -73,16 +87,30 @@ services:
       retries: 5
     restart: always
 
-  # Initialize Airflow database
+  # Initialize Airflow database and shared volume
   airflow-init:
     <<: *airflow-common
+    user: "0:0"  # Run as root to set permissions
     entrypoint: /bin/bash
     command:
       - -c
       - |
+        # Set up shared volume permissions (writable by airflow user)
+        mkdir -p /shared
+        chmod 777 /shared
         # Airflow 3.x uses 'db migrate' instead of 'db init'
-        airflow db migrate
+        # Run as airflow user with proper PATH/PYTHONPATH
+        su airflow -c "airflow db migrate"
         echo "Airflow database initialized!"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./packages:/opt/airflow/packages:ro
+      - ./logs:/opt/airflow/logs
+      - ./venv_cache:/opt/airflow/venv_cache
+      - ./alembic:/opt/airflow/alembic:ro
+      - ./alembic.ini:/opt/airflow/alembic.ini:ro
+      - ${TEST_FILES_PATH:-./test_files}:/data/files:ro
+      - shared_data:/shared
     restart: "no"
     depends_on:
       postgres:
@@ -91,9 +119,36 @@ services:
   # Airflow API Server (replaces webserver in Airflow 3.x)
   airflow-webserver:
     <<: *airflow-common
-    command: api-server
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        # Start api-server in background, wait for password file, export it, then wait
+        airflow api-server &
+        AIRFLOW_PID=$$!
+        # Wait for password file to be generated
+        for i in {1..60}; do
+          if [ -f /opt/airflow/simple_auth_manager_passwords.json.generated ]; then
+            cat /opt/airflow/simple_auth_manager_passwords.json.generated | python3 -c "import sys,json; print(json.load(sys.stdin)['admin'])" > /shared/airflow_password.txt
+            chmod 644 /shared/airflow_password.txt
+            echo "Password exported to /shared/airflow_password.txt"
+            break
+          fi
+          sleep 1
+        done
+        # Wait for api-server to finish (it shouldn't unless there's an error)
+        wait $$AIRFLOW_PID
     ports:
       - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./packages:/opt/airflow/packages:ro
+      - ./logs:/opt/airflow/logs
+      - ./venv_cache:/opt/airflow/venv_cache
+      - ./alembic:/opt/airflow/alembic:ro
+      - ./alembic.ini:/opt/airflow/alembic.ini:ro
+      - ${TEST_FILES_PATH:-./test_files}:/data/files:ro
+      - shared_data:/shared
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
       interval: 30s
@@ -120,5 +175,62 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://app:app@postgres:5432/app}
+      AIRFLOW_API_URL: http://airflow-webserver:8080/api/v2
+      AIRFLOW_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      # NOTE: Airflow 3.x generates password on startup. Update via: just lookup-pswd
+      # Password loaded dynamically from shared volume (see lifespan in api/main.py)
+      AIRFLOW_PASSWORD_FILE: /shared/airflow_password.txt
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      # GROQ for local development (set GROQ_API_KEY in .env)
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      # Storage settings
+      TEST_FILES_PATH: /data/files
+      S3_BUCKET: ${S3_BUCKET:-nreca-ingest-bucket}
+      S3_PREFIX: ${S3_PREFIX:-documents/}
+      # ChromaDB settings
+      CHROMA_LOCAL_HOST: chroma
+      CHROMA_LOCAL_PORT: 8000
+      CHROMA_PROD_HOST: ${CHROMA_PROD_HOST:-18.205.154.91}
+      CHROMA_PROD_PORT: ${CHROMA_PROD_PORT:-8000}
+      CHROMA_COLLECTION: ${CHROMA_COLLECTION:-nreca_documents}
+    volumes:
+      - ./packages:/opt/app/packages:ro
+      - ${TEST_FILES_PATH:-./test_files}:/data/files:ro
+      - shared_data:/shared:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-webserver:
+        condition: service_healthy
+      chroma:
+        condition: service_started
+    restart: always
+
+  # ChromaDB Vector Database (local development)
+  chroma:
+    image: chromadb/chroma:latest
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    restart: always
+
 volumes:
   postgres_data:
+  chroma_data:
+  shared_data:  # Shared between Airflow and API for password sync

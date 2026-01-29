@@ -1,0 +1,2 @@
+# This directory contains test files for local development
+# When APP_ENV=local, files are read from here instead of S3

@@ -1,13 +1,15 @@
 [project]
-name = "airflow-template"
+name = "nreca-pipeline"
 version = "0.1.0"
-description = "Production-ready Airflow 3.x template with SQLAlchemy version conflict resolution"
+description = "NRECA document ingestion and RAG pipeline with Airflow and FastAPI"
 requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [
     "apache-airflow>=3.0.0",
     "utils",
     "db",
+    "storage",
+    "vectordb",
 ]
 
 [tool.uv]
@@ -17,17 +19,41 @@ dev-dependencies = [
     "pre-commit>=4.0.0",
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "psycopg[binary]>=3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "e2e: end-to-end tests against Docker services",
+    "slow: tests that take longer to run",
+    "llm: tests that require LLM API access",
+]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
 ]
 
 [tool.uv.workspace]
 members = [
     "packages/utils",
     "packages/db",
+    "packages/storage",
+    "packages/vectordb",
+    "packages/api",
 ]
 
 [tool.uv.sources]
 utils = { workspace = true }
 db = { workspace = true }
+storage = { workspace = true }
+vectordb = { workspace = true }
+api = { workspace = true }
 
 # Note: Root workspace is not a buildable package (virtual)
 # Individual packages in packages/ have their own build-system

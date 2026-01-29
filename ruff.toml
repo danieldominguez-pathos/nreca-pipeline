@@ -11,3 +11,8 @@ ignore = [
 [lint.per-file-ignores]
 "alembic/versions/*.py" = ["E501"]  # Allow long lines in migrations
 "dags/**/*.py" = ["PLR0915"]  # DAG functions naturally have many statements
+"tests/**/*.py" = [
+    "S101",    # Allow assert in tests
+    "PLR2004", # Allow magic values in tests
+    "E501",    # Allow long lines in tests
+]
