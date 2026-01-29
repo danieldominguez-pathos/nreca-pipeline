@@ -209,6 +209,9 @@ services:
       - ./packages:/opt/app/packages:ro
       - ${TEST_FILES_PATH:-./test_files}:/data/files:ro
       - shared_data:/shared:ro
+      - ./alembic:/opt/app/alembic:ro
+      - ./alembic.ini:/opt/app/alembic.ini:ro
+    working_dir: /opt/app
     depends_on:
       postgres:
         condition: service_healthy

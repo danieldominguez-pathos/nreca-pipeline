@@ -8,7 +8,6 @@ Document ingestion and RAG query pipeline for NRECA.
 
 - Docker & Docker Compose
 - [just](https://github.com/casey/just) command runner
-- [uv](https://github.com/astral-sh/uv) (for migrations)
 - Groq API key (free at https://console.groq.com)
 
 ### Setup

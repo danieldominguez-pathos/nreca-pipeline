@@ -163,11 +163,11 @@ psql:
 
 # Run alembic migrations
 migrate:
-    DATABASE_URL="postgresql+psycopg://app:app@localhost:5434/app" uv run alembic upgrade head
+    docker compose exec api alembic upgrade head
 
 # Show migration status
 migrate-status:
-    DATABASE_URL="postgresql+psycopg://app:app@localhost:5434/app" uv run alembic current
+    docker compose exec api alembic current
 
 # =============================================================================
 # ChromaDB Commands
