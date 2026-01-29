@@ -2,10 +2,10 @@
 
 import os
 from functools import lru_cache
-from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from utils import AppEnvMode
 
 
 def _read_password_file(path: str) -> str | None:
@@ -18,7 +18,16 @@ def _read_password_file(path: str) -> str | None:
 
 
 class APISettings(BaseSettings):
-    """Configuration for FastAPI application."""
+    """Configuration for FastAPI application.
+
+    Supports flexible APP_ENV:
+    - "local" - Local services, Groq LLM
+    - "local:prod_llm" - Local services, production LLM (Gemma)
+    - "local:prod_chroma" - Local services, remote ChromaDB
+    - "local:S3" - Local services, S3 storage
+    - "local:S3:prod_chroma:prod_llm" - Combinations
+    - "prod" - All production services
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -26,9 +35,10 @@ class APISettings(BaseSettings):
         extra="ignore",
     )
 
-    app_env: Literal["local", "prod"] = Field(
+    app_env: str = Field(
         default="local",
         validation_alias="APP_ENV",
+        description="Environment mode: 'local', 'local:prod_llm', 'prod', etc.",
     )
 
     # Airflow API settings (v2 for Airflow 3.x)
@@ -100,9 +110,19 @@ class APISettings(BaseSettings):
     )
 
     @property
+    def env_mode(self) -> AppEnvMode:
+        """Get parsed environment mode."""
+        return AppEnvMode(self.app_env)
+
+    @property
     def is_local(self) -> bool:
-        """Check if running in local mode."""
-        return self.app_env == "local"
+        """Check if base environment is local (not full prod)."""
+        return self.env_mode.is_local_base
+
+    @property
+    def use_prod_llm(self) -> bool:
+        """Check if production LLM (Gemma) should be used."""
+        return self.env_mode.use_prod_llm
 
 
 @lru_cache(maxsize=1)

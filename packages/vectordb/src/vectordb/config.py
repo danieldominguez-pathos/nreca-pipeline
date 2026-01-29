@@ -1,14 +1,20 @@
 """ChromaDB configuration settings."""
 
 from functools import lru_cache
-from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from utils import AppEnvMode
 
 
 class ChromaSettings(BaseSettings):
-    """Configuration for ChromaDB client."""
+    """Configuration for ChromaDB client.
+
+    Supports flexible APP_ENV:
+    - "local" - Local Docker ChromaDB
+    - "local:prod_chroma" - Use remote production ChromaDB (VPN required)
+    - "prod" - Use remote production ChromaDB
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -16,10 +22,10 @@ class ChromaSettings(BaseSettings):
         extra="ignore",
     )
 
-    app_env: Literal["local", "prod"] = Field(
+    app_env: str = Field(
         default="local",
         validation_alias="APP_ENV",
-        description="Environment mode: 'local' for docker chroma, 'prod' for remote",
+        description="Environment mode: 'local', 'local:prod_chroma', 'prod', etc.",
     )
 
     # Local ChromaDB settings (docker container)
@@ -34,11 +40,11 @@ class ChromaSettings(BaseSettings):
         description="Local ChromaDB port",
     )
 
-    # Production ChromaDB settings (remote server)
+    # Production ChromaDB settings (remote server - requires VPN)
     chroma_prod_host: str = Field(
-        default="18.205.154.91",
+        default="",
         validation_alias="CHROMA_PROD_HOST",
-        description="Production ChromaDB host",
+        description="Production ChromaDB host (set in .env, requires VPN)",
     )
     chroma_prod_port: int = Field(
         default=8000,
@@ -61,19 +67,28 @@ class ChromaSettings(BaseSettings):
     )
 
     @property
-    def is_local(self) -> bool:
-        """Check if running in local mode."""
-        return self.app_env == "local"
+    def env_mode(self) -> AppEnvMode:
+        """Get parsed environment mode."""
+        return AppEnvMode(self.app_env)
+
+    @property
+    def use_prod_chroma(self) -> bool:
+        """Check if production ChromaDB should be used."""
+        return self.env_mode.use_prod_chroma
 
     @property
     def host(self) -> str:
         """Get the appropriate host based on environment."""
-        return self.chroma_local_host if self.is_local else self.chroma_prod_host
+        if self.use_prod_chroma:
+            if not self.chroma_prod_host:
+                raise ValueError("CHROMA_PROD_HOST must be set when using prod_chroma mode")
+            return self.chroma_prod_host
+        return self.chroma_local_host
 
     @property
     def port(self) -> int:
         """Get the appropriate port based on environment."""
-        return self.chroma_local_port if self.is_local else self.chroma_prod_port
+        return self.chroma_prod_port if self.use_prod_chroma else self.chroma_local_port
 
 
 @lru_cache(maxsize=1)

@@ -1,14 +1,20 @@
 """Storage configuration settings."""
 
 from functools import lru_cache
-from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from utils import AppEnvMode
 
 
 class StorageSettings(BaseSettings):
-    """Configuration for file storage backends."""
+    """Configuration for file storage backends.
+
+    Supports flexible APP_ENV:
+    - "local" - Local filesystem storage
+    - "local:S3" - Use S3 storage
+    - "prod" - Use S3 storage (production default)
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -16,15 +22,15 @@ class StorageSettings(BaseSettings):
         extra="ignore",
     )
 
-    app_env: Literal["local", "prod"] = Field(
+    app_env: str = Field(
         default="local",
         validation_alias="APP_ENV",
-        description="Environment mode: 'local' for filesystem, 'prod' for S3",
+        description="Environment mode: 'local', 'local:S3', 'prod', etc.",
     )
 
     # Local storage settings
     local_path: str = Field(
-        default="/home/danyiel/Working/NovaDynamics/test_files",
+        default="/data/files",
         validation_alias="TEST_FILES_PATH",
         description="Base path for local file storage",
     )
@@ -47,9 +53,14 @@ class StorageSettings(BaseSettings):
     )
 
     @property
-    def is_local(self) -> bool:
-        """Check if running in local mode."""
-        return self.app_env == "local"
+    def env_mode(self) -> AppEnvMode:
+        """Get parsed environment mode."""
+        return AppEnvMode(self.app_env)
+
+    @property
+    def use_s3(self) -> bool:
+        """Check if S3 storage should be used."""
+        return self.env_mode.use_s3
 
 
 @lru_cache(maxsize=1)

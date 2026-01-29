@@ -66,10 +66,16 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health_check() -> dict:
-        """Health check endpoint."""
+        """Health check endpoint with environment details."""
+        mode = settings.env_mode
         return {
             "status": "healthy",
-            "env": settings.app_env,
+            "app_env": settings.app_env,
+            "services": {
+                "storage": "s3" if mode.use_s3 else "local",
+                "chroma": "prod" if mode.use_prod_chroma else "local",
+                "llm": "prod" if mode.use_prod_llm else "local",
+            },
         }
 
     return app

@@ -28,22 +28,17 @@ class LLMClient:
         self._initialize_client()
 
     def _initialize_client(self) -> None:
-        """Initialize the appropriate LLM client based on environment and config."""
+        """Initialize the appropriate LLM client based on environment and config.
+
+        Provider selection based on APP_ENV:
+        - "local" or "local:S3" etc. (no prod_llm) → Use Groq
+        - "local:prod_llm" or "prod" → Use Gemma
+        - Fallback to OpenAI if primary not configured
+        """
         settings = self._settings
 
-        # Local environment: prefer GROQ
-        if settings.is_local and settings.groq_api_key:
-            self._client = AsyncOpenAI(
-                api_key=settings.groq_api_key.get_secret_value(),
-                base_url="https://api.groq.com/openai/v1",
-            )
-            self._model = settings.groq_model
-            self._provider = "groq"
-            log.info("llm_initialized", provider="groq", model=self._model)
-            return
-
-        # Production environment: prefer Gemma
-        if not settings.is_local and settings.gemma_api_key:
+        # Production LLM mode: prefer Gemma
+        if settings.use_prod_llm and settings.gemma_api_key:
             self._client = AsyncOpenAI(
                 api_key=settings.gemma_api_key.get_secret_value(),
                 base_url=settings.gemma_base_url,
@@ -51,6 +46,17 @@ class LLMClient:
             self._model = settings.gemma_model
             self._provider = "gemma"
             log.info("llm_initialized", provider="gemma", model=self._model)
+            return
+
+        # Local LLM mode: prefer GROQ
+        if not settings.use_prod_llm and settings.groq_api_key:
+            self._client = AsyncOpenAI(
+                api_key=settings.groq_api_key.get_secret_value(),
+                base_url="https://api.groq.com/openai/v1",
+            )
+            self._model = settings.groq_model
+            self._provider = "groq"
+            log.info("llm_initialized", provider="groq", model=self._model)
             return
 
         # Custom base URL (works with any OpenAI-compatible API)

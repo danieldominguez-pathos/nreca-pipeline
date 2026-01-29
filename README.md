@@ -137,21 +137,41 @@ Required:
 GROQ_API_KEY=your-key      # Get at https://console.groq.com
 ```
 
-Optional:
+### APP_ENV Configuration
+
+`APP_ENV` supports flexible service selection via colon-separated flags:
+
+| Value | Storage | ChromaDB | LLM |
+|-------|---------|----------|-----|
+| `local` (default) | Local filesystem | Local Docker | Groq |
+| `local:S3` | AWS S3 | Local Docker | Groq |
+| `local:prod_chroma` | Local filesystem | Remote (VPN) | Groq |
+| `local:prod_llm` | Local filesystem | Local Docker | Gemma |
+| `local:S3:prod_chroma` | AWS S3 | Remote (VPN) | Groq |
+| `local:S3:prod_chroma:prod_llm` | AWS S3 | Remote (VPN) | Gemma |
+| `prod` | AWS S3 | Remote (VPN) | Gemma |
+
+Example:
+```bash
+APP_ENV=local                      # Pure local development
+APP_ENV=local:prod_chroma          # Test with production ChromaDB
+APP_ENV=local:S3:prod_llm          # S3 storage + production LLM
+```
+
+### Optional Variables
 
 ```bash
-APP_ENV=local              # Environment
 GROQ_MODEL=llama-3.3-70b-versatile
 CHROMA_COLLECTION=nreca_documents
 ```
 
-Production:
+### Production Variables
 
 ```bash
-OPENAI_API_KEY=...         # Use OpenAI instead of Groq
-LLM_MODEL=gpt-4o-mini
-CHROMA_PROD_HOST=...       # Remote ChromaDB
-S3_BUCKET=...              # S3 storage
+CHROMA_PROD_HOST=...       # Remote ChromaDB host (VPN required)
+S3_BUCKET=...              # S3 bucket name
+GEMMA_API_KEY=...          # Production LLM API key
+GEMMA_BASE_URL=...         # Production LLM endpoint
 ```
 
 ## Project Structure

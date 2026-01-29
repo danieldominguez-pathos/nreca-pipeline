@@ -27,7 +27,7 @@ def get_storage(settings: StorageSettings | None = None) -> StorageBackend:
     if settings is None:
         settings = get_storage_settings()
 
-    if settings.is_local:
+    if not settings.use_s3:
         return LocalStorageBackend(base_path=settings.local_path)
 
     return S3StorageBackend(
