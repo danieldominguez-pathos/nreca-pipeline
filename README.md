@@ -103,7 +103,7 @@ just query "What is the cooperative policy on renewable energy?"
 | ChromaDB   | http://localhost:8001      | Vector database                |
 | PostgreSQL | localhost:5434             | File tracking                  |
 
-Airflow password: `just lookup-pswd`
+Airflow credentials: `just airflow-pswd`
 
 ## Commands
 
@@ -113,6 +113,7 @@ just setup              # First-time setup (build, start, migrate)
 just up                 # Start services
 just down               # Stop services
 just reset              # Full reset (removes data)
+just airflow-pswd       # Show Airflow user and password
 
 # Pipeline
 just register-all       # Register files in test_files/

@@ -78,6 +78,21 @@ status:
 lookup-pswd:
     @docker compose exec airflow-webserver cat /opt/airflow/simple_auth_manager_passwords.json.generated 2>/dev/null || docker compose logs airflow-webserver 2>&1 | grep "Password for user" | tail -1
 
+# Show Airflow credentials (user and generated password)
+airflow-pswd:
+    #!/usr/bin/env bash
+    json=$(docker compose exec airflow-webserver cat /opt/airflow/simple_auth_manager_passwords.json.generated 2>/dev/null)
+    if [ -n "$json" ]; then
+        user=$(echo "$json" | jq -r 'keys[0]')
+        pswd=$(echo "$json" | jq -r '.[keys[0]]')
+        echo "Airflow Credentials"
+        echo "───────────────────"
+        echo "  User:     $user"
+        echo "  Password: $pswd"
+    else
+        echo "Could not retrieve credentials. Check logs with: just logs-airflow"
+    fi
+
 # Show Airflow webserver logs
 logs-airflow:
     docker compose logs --tail=100 airflow-webserver
