@@ -58,7 +58,7 @@ build-fresh:
 up:
     docker compose up -d
 
-# Stop all services
+# Stop all services and release ports (data persists in volumes)
 down:
     docker compose down
 
@@ -275,6 +275,6 @@ logs:
 clean-test-data:
     psql "postgresql://app:app@localhost:5434/app" -c "DELETE FROM file_records WHERE filename LIKE 'test_%'; DELETE FROM dead_queue WHERE filename LIKE 'test_%';"
 
-# Full reset: stop, remove volumes, rebuild, start
+# Full reset: DELETES ALL DATA (postgres, chroma), rebuilds from scratch
 reset:
     docker compose down -v && docker compose build --no-cache && docker compose up -d && sleep 30 && just migrate
