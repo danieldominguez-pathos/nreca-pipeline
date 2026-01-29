@@ -178,7 +178,7 @@ S3_BUCKET=...              # S3 storage
 ## Supported File Types
 
 - PDF (.pdf)
-- Word (.docx)
+- Word (.docx, .doc)
 - Plain text (.txt)
 
 ## Troubleshooting

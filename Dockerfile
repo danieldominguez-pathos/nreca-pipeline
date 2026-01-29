@@ -14,6 +14,10 @@ FROM apache/airflow:3.1.3-python3.12
 
 USER root
 
+# Install antiword for .doc file support
+RUN apt-get update && apt-get install -y --no-install-recommends antiword && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create directories with correct permissions for airflow user (uid 50000)
 RUN mkdir -p /opt/airflow/logs /opt/airflow/venv_cache && \
     chown -R airflow:root /opt/airflow/logs /opt/airflow/venv_cache && \

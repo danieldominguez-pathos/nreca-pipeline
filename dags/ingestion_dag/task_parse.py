@@ -6,7 +6,7 @@ from __future__ import annotations
 def parse_document(content_b64: str, filename: str) -> dict:
     """Parse document and extract text content.
 
-    Supports PDF, DOCX, and plain text files.
+    Supports PDF, DOCX, DOC (via antiword), and plain text files.
 
     Args:
         content_b64: Base64-encoded file content
@@ -31,6 +31,8 @@ def parse_document(content_b64: str, filename: str) -> dict:
         return _parse_pdf(content, filename)
     elif file_lower.endswith(".docx"):
         return _parse_docx(content, filename)
+    elif file_lower.endswith(".doc"):
+        return _parse_doc(content, filename)
     elif file_lower.endswith((".txt", ".md", ".csv")):
         return _parse_text(content, filename)
     else:
@@ -77,6 +79,35 @@ def _parse_docx(content: bytes, filename: str) -> dict:
         "filename": filename,
         "page_count": 1,  # DOCX doesn't have pages
         "file_type": "docx",
+    }
+
+
+def _parse_doc(content: bytes, filename: str) -> dict:
+    """Parse legacy .doc document using antiword."""
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".doc", delete=True) as tmp:
+        tmp.write(content)
+        tmp.flush()
+
+        result = subprocess.run(
+            ["antiword", tmp.name],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        if result.returncode != 0:
+            raise ValueError(f"antiword failed for {filename}: {result.stderr}")
+
+        text = result.stdout.strip()
+
+    return {
+        "text": text,
+        "filename": filename,
+        "page_count": 1,
+        "file_type": "doc",
     }
 
 
