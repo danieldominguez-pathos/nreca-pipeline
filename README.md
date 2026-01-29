@@ -7,11 +7,11 @@ Document ingestion and RAG query pipeline for NRECA.
 ```
                          Docker Compose
 
-┌─────────────┐          ┌───────────────────────────────────────┐
-│   FastAPI   │          │             Airflow 3.x               │
-│    :8000    │          │                                       │
-│             │ trigger  │  ┌──────────┐     ┌─────────────────┐ │
-│  /register ─┼────────▶│  │Scheduler │───▶│  ingestion_dag  │ │
+┌─────────────┐          ┌────────────────────────────────────────┐
+│   FastAPI   │          │             Airflow 3.x                │
+│    :8000    │          │                                        │
+│             │ trigger  │  ┌──────────┐     ┌─────────────────┐  │
+│  /register ─┼────────▶│  │Scheduler │───▶│  ingestion_dag  │  │
 │  /pending   │          │  └──────────┘     │                 │  │
 │  /query     │          │                   │  get_file_ids   │  │
 │  /admin/*   │          │  ┌──────────┐     │       │         │  │
