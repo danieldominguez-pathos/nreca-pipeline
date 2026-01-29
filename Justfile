@@ -74,10 +74,6 @@ status:
 # Airflow Commands
 # =============================================================================
 
-# Lookup the auto-generated SAM password (Airflow 3.x generates one on startup)
-lookup-pswd:
-    @docker compose exec airflow-webserver cat /opt/airflow/simple_auth_manager_passwords.json.generated 2>/dev/null || docker compose logs airflow-webserver 2>&1 | grep "Password for user" | tail -1
-
 # Show Airflow credentials (user and generated password)
 airflow-pswd:
     #!/usr/bin/env bash
@@ -113,17 +109,9 @@ reserialize:
 trigger dag_id:
     docker compose exec airflow-scheduler airflow dags trigger {{dag_id}}
 
-# Trigger ingestion for specific file IDs (usage: just ingest-files "uuid1,uuid2")
-ingest-files file_ids:
-    docker compose exec airflow-scheduler airflow dags trigger ingestion_dag --conf '{"file_ids": ["{{file_ids}}"]}'
-
-# Process all PENDING files (no arguments needed)
+# Process all PENDING files via Airflow CLI
 ingest-pending:
     docker compose exec airflow-scheduler airflow dags trigger ingestion_dag --conf '{"process_pending": true}'
-
-# Process all PENDING files with custom limit
-ingest-pending-limit limit:
-    docker compose exec airflow-scheduler airflow dags trigger ingestion_dag --conf '{"process_pending": true, "pending_limit": {{limit}}}'
 
 # =============================================================================
 # Bulk File Operations (via API)
@@ -131,18 +119,14 @@ ingest-pending-limit limit:
 
 # Register all files from TEST_FILES_PATH directory
 register-all:
-    @docker compose exec api ls /data/files/ | grep -E '\.(pdf|txt|docx)$' | jq -R -s '{filenames: (split("\n") | map(select(length > 0)))}' | curl -s -X POST http://localhost:8000/ingest/register -H "Content-Type: application/json" -d @- | jq
+    @docker compose exec api ls /data/files/ | grep -E '\.(pdf|txt|docx|doc)$' | jq -R -s '{filenames: (split("\n") | map(select(length > 0)))}' | curl -s -X POST http://localhost:8000/ingest/register -H "Content-Type: application/json" -d @- | jq
 
 # Register specific files (comma-separated)
 register files:
     @echo '{"filenames": ["{{files}}"]}' | sed 's/,/","/g' | curl -s -X POST http://localhost:8000/ingest/register -H "Content-Type: application/json" -d @- | jq
 
 # Trigger ingestion for all pending files via API
-ingest-pending-api:
-    @curl -s -X POST "http://localhost:8000/ingest/pending?limit=50" | jq
-
-# Trigger ingestion with limit via API
-ingest-pending-api-limit limit:
+ingest-pending-api limit="50":
     @curl -s -X POST "http://localhost:8000/ingest/pending?limit={{limit}}" | jq
 
 # Full pipeline: register all files then ingest
@@ -196,11 +180,7 @@ migrate-status:
 chroma-health:
     @curl -s http://localhost:8001/api/v2/heartbeat | jq
 
-# List ChromaDB collections
-chroma-collections:
-    @curl -s "http://localhost:8001/api/v2/tenants/default_tenant/databases/default_database/collections" | jq '.[].name'
-
-# Show ChromaDB collection statistics and random sample documents (usage: just chroma-docs-sample 5)
+# Show ChromaDB statistics and random sample documents (usage: just chroma-docs-sample 5)
 chroma-docs-sample n="10":
     #!/usr/bin/env bash
     # Colors
@@ -266,10 +246,6 @@ chroma-docs-sample n="10":
 # Run all E2E tests
 test:
     uv run pytest tests/e2e/ -v
-
-# Run tests with short traceback
-test-short:
-    uv run pytest tests/e2e/ -v --tb=short
 
 # Run specific test file
 test-file file:
